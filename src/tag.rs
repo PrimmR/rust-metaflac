@@ -465,54 +465,33 @@ impl<'a> Tag {
             block_bytes.push(writer);
         }
 
-        // write using padding
-        if self.path.is_some()
-            && path.as_ref() == self.path.as_ref().unwrap().as_path()
-            && new_length + 4 <= self.length
-        {
-            let mut file = OpenOptions::new()
-                .write(true)
-                .read(true)
-                .open(self.path.as_ref().unwrap())?;
-            crate::block::read_ident(&mut file)?;
-
-            for bytes in block_bytes.iter() {
-                file.write_all(&bytes[..])?;
+        // write by copying file data
+        let data_opt = {
+            match File::open(&path) {
+                Ok(mut file) => Some(Tag::skip_metadata(&mut file)),
+                Err(_) => None,
             }
+        };
 
-            let padding = Block::Padding(self.length - new_length - 4);
-            padding.write_to(true, &mut file)?;
-            self.push_block(padding);
-        } else {
-            // write by copying file data
+        let mut file = OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .create(true)
+            .open(&path)?;
 
-            let data_opt = {
-                match File::open(&path) {
-                    Ok(mut file) => Some(Tag::skip_metadata(&mut file)),
-                    Err(_) => None,
-                }
-            };
+        file.write_all(b"fLaC")?;
 
-            let mut file = OpenOptions::new()
-                .write(true)
-                .truncate(true)
-                .create(true)
-                .open(&path)?;
+        for bytes in block_bytes.iter() {
+            file.write_all(&bytes[..])?;
+        }
 
-            file.write_all(b"fLaC")?;
+        let padding_size = 1024;
+        let padding = Block::Padding(padding_size);
+        new_length += padding.write_to(true, &mut file)?;
+        self.push_block(padding);
 
-            for bytes in block_bytes.iter() {
-                file.write_all(&bytes[..])?;
-            }
-
-            let padding_size = 1024;
-            let padding = Block::Padding(padding_size);
-            new_length += padding.write_to(true, &mut file)?;
-            self.push_block(padding);
-
-            if let Some(data) = data_opt {
-                file.write_all(&data[..])?;
-            }
+        if let Some(data) = data_opt {
+            file.write_all(&data[..])?;
         }
 
         self.length = new_length;

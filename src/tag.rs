@@ -43,9 +43,23 @@ impl<'a> Tag {
         self.blocks.iter()
     }
 
+    /// Returns a mutable reference to the blocks in the tag.
+    pub fn blocks_mut(&'a mut self) -> impl Iterator<Item = &'a mut Block> + 'a {
+        self.blocks.iter_mut()
+    }
+
     /// Returns references to the blocks with the specified type.
     pub fn get_blocks(&'a self, block_type: BlockType) -> impl Iterator<Item = &'a Block> + 'a {
         self.blocks()
+            .filter(move |block| block.block_type() == block_type)
+    }
+
+    /// Returns mutable references to the blocks with the specified type.
+    pub fn get_blocks_mut(
+        &'a mut self,
+        block_type: BlockType,
+    ) -> impl Iterator<Item = &'a mut Block> + 'a {
+        self.blocks_mut()
             .filter(move |block| block.block_type() == block_type)
     }
 
